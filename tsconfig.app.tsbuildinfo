@@ -1,0 +1,1 @@
+{"root":["./src/main.ts","./src/vite-env.d.ts","./src/firebase/config.ts","./src/router/index.ts","./src/services/usetasks.ts","./src/stores/auth.ts","./src/types/task.ts","./src/app.vue","./src/components/navbar.vue","./src/components/tasktable.vue","./src/login/login.vue","./src/login/register.vue"],"version":"5.6.2"}
