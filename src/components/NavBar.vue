@@ -13,8 +13,7 @@
           <span class="text-white mr-4">Bem-vindo, {{ displayName }}!</span>
           <el-dropdown>
             <button
-              class="custom-button-logout flex items-center rounded-full bg-transparent border p-2 text-gray-400 hover:text-white"
-            >
+              class="custom-button-logout flex items-center rounded-full bg-transparent border p-2 text-gray-400 hover:text-white">
               <span class="sr-only">Menu</span>
               <el-icon>
                 <Menu />
@@ -33,7 +32,7 @@
     </div>
 
     <div class="sm:hidden" id="mobile-menu">
-      <div class="space-y-1 px-2 pt-2">
+      <div class="space-y-1 px-2">
       </div>
     </div>
   </nav>
@@ -43,17 +42,26 @@
 import { computed, defineComponent } from 'vue';
 import { user, logout } from '../stores/auth';
 import { useRouter } from 'vue-router';
-import { Tickets, Menu } from '@element-plus/icons-vue';
+import { ElMessage } from 'element-plus';
 
 export default defineComponent({
   setup() {
     const router = useRouter();
-
     const displayName = computed(() => user.value?.displayName || 'Usuário');
 
     const handleLogout = async () => {
-      await logout();
-      router.push('/login');
+      try {
+        await logout();
+
+        ElMessage({
+          message: 'Saída feita com sucesso!',
+          type: 'success',
+        });
+
+        router.push('/login');
+      } catch (error) {
+        ElMessage.error('Erro ao sair. Tente novamente.');
+      }
     };
 
     return { displayName, handleLogout };
@@ -61,16 +69,17 @@ export default defineComponent({
 });
 </script>
 
+
 <style scoped>
 nav {
-  background-color: #2d3748; 
+  background-color: #2d3748;
 }
 
 img {
-  max-height: 100%; 
+  max-height: 100%;
 }
 
-.custom-button-logout{
+.custom-button-logout {
   outline: none;
   box-shadow: none;
 }

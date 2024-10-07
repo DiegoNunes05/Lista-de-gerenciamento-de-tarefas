@@ -22,7 +22,10 @@
           <div class="flex flex-row justify-between mt-3">
             <div class="flex flex-col max-w-56">
               <span class="task-status">Status: <small class="text-sm text-gray-700">{{ task.status }}</small></span>
-              <span class="task-description mt-1">Descrição: <small class="text-sm text-gray-700">{{ task.description }}</small></span>
+              <span class="task-description mt-1">Descrição: 
+                <small class="text-sm text-gray-700">
+                  {{ task.description }}</small>
+                </span>
               <small v-if="task.updatedAt" class="block text-gray-400">
                 Última atualização: {{ formatMobileDate(task.updatedAt) }}
               </small>
@@ -42,7 +45,7 @@
                   <Check />
                 </el-icon>
               </el-button>
-              <el-button @click="deleteTask(task.id)" icon circle class="delete-button">
+              <el-button @click="openDeleteDialog(task)" icon circle class="delete-button">
                 <el-icon>
                   <Delete />
                 </el-icon>
@@ -64,7 +67,11 @@
           <div class="flex flex-row justify-between mt-3">
             <div class="flex flex-col">
               <span class="task-status">Status: <small class="text-sm text-gray-700">{{ task.status }}</small></span>
-              <span class="task-description mt-1">Descrição: <small class="text-sm text-gray-700">{{ task.description }}</small></span>
+              <span class="task-description mt-1">Descrição: 
+                <small class="text-sm text-gray-700">
+                  {{ task.description }}
+                </small>
+              </span>
               <small v-if="task.updatedAt" class="block text-gray-400">
                 Última atualização: {{ formatDate(task.updatedAt) }}
               </small>
@@ -84,7 +91,7 @@
                   <Check />
                 </el-icon>
               </el-button>
-              <el-button @click="deleteTask(task.id)" icon circle class="delete-button">
+              <el-button @click="openDeleteDialog(task)" icon circle class="delete-button">
                 <el-icon>
                   <Delete />
                 </el-icon>
@@ -94,14 +101,29 @@
         </div>
       </TransitionGroup>
     </div>
+    <!-- Diálogo de confirmação de exclusão -->
+    <el-dialog 
+      title="Confirmação de Exclusão" 
+      v-model="deleteDialogVisible" 
+      :width="isMobile ? '90%' : '30%'"
+      @close="handleCloseDeleteDialog">
+      <span>Tem certeza que quer excluir essa tarefa? Não é possível recuperar após excluir.</span>
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="handleCloseDeleteDialog" class="cancel-button">Cancelar</el-button>
+          <el-button type="primary" @click="confirmDeleteTask" class="confirm-button">Excluir</el-button>
+        </div>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script lang="ts">
 import { defineComponent, reactive, ref, onMounted, onBeforeUnmount } from 'vue';
 import { Delete, Edit, Check, CloseBold } from '@element-plus/icons-vue';
-import { collection, addDoc, getDocs, updateDoc, deleteDoc, doc, query, where } from 'firebase/firestore';
+import { collection, addDoc, getDocs, updateDoc, deleteDoc, doc } from 'firebase/firestore';
 import { auth, db } from '../firebase/config';
+import { ElMessage } from 'element-plus';
 
 interface Task {
   id: string;
@@ -130,6 +152,8 @@ export default defineComponent({
       updatedAt: null,
     });
     const isEditing = ref(false);
+    const deleteDialogVisible = ref(false);
+    const taskToDelete = ref<Task | null>(null);
     const user = auth.currentUser;
 
     const fetchTasks = async () => {
@@ -151,7 +175,10 @@ export default defineComponent({
 
     const saveTask = async () => {
       if (!currentTask.title || !currentTask.description) {
-        alert('Tanto o título quanto a descrição são obrigatórios');
+        ElMessage({
+          message: 'Tanto o título quanto a descrição são obrigatórios.',
+          type: 'warning',
+        });
         return;
       }
 
@@ -165,6 +192,10 @@ export default defineComponent({
           status: currentTask.status,
           updatedAt: now,
         });
+        ElMessage({
+          message: 'Tarefa atualizada com sucesso!',
+          type: 'success',
+        });
         isEditing.value = false;
       } else {
         await addDoc(collection(db, 'users', user!.uid, 'tasks'), {
@@ -174,10 +205,39 @@ export default defineComponent({
           createdAt: now,
           updatedAt: now,
         });
+        ElMessage({
+          message: 'Tarefa criada com sucesso!',
+          type: 'success',
+        });
       }
 
       resetCurrentTask();
       await fetchTasks();
+    };
+
+    const openDeleteDialog = (task: Task) => {
+      taskToDelete.value = task;
+      deleteDialogVisible.value = true;
+    };
+
+    const confirmDeleteTask = async () => {
+      if (taskToDelete.value) {
+        const taskRef = doc(db, 'users', user!.uid, 'tasks', taskToDelete.value.id);
+        await deleteDoc(taskRef);
+        deleteDialogVisible.value = false;
+        taskToDelete.value = null;
+        await fetchTasks();
+     
+        ElMessage({
+          message: 'Tarefa excluída com sucesso!',
+          type: 'success',
+        });
+      }
+    };
+
+    const handleCloseDeleteDialog = () => {
+      deleteDialogVisible.value = false;
+      taskToDelete.value = null;
     };
 
     const editTask = (task: Task) => {
@@ -196,6 +256,18 @@ export default defineComponent({
       const newStatus = task.status === 'Concluída' ? 'Pendente' : 'Concluída';
       await updateDoc(taskRef, { status: newStatus });
       await fetchTasks(); // Recarregar tarefas após alteração de status
+
+      if (newStatus === 'Concluída') {
+        ElMessage({
+          message: 'Tarefa concluída!',
+          type: 'success',
+        });
+      } else {
+        ElMessage({
+          message: 'Aviso: Tarefa pendente.',
+          type: 'warning',
+        });
+      }
     };
 
     const resetCurrentTask = () => {
@@ -248,7 +320,22 @@ export default defineComponent({
 
     onMounted(fetchTasks);
 
-    return { tasks, currentTask, saveTask, editTask, deleteTask, toggleStatus, isEditing, formatDate, isMobile, formatMobileDate };
+    return {
+      tasks,
+      currentTask,
+      saveTask,
+      editTask,
+      deleteTask,
+      openDeleteDialog,
+      confirmDeleteTask,
+      handleCloseDeleteDialog,
+      toggleStatus,
+      isEditing,
+      formatDate,
+      isMobile,
+      formatMobileDate,
+      deleteDialogVisible,
+    };
   }
 });
 </script>
